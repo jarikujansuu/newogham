@@ -2,6 +2,7 @@ package org.newogham
 
 import org.scalatest.FunSpec
 import org.scalatest.Matchers._
+import BB._
 import BBM._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.SpanSugar._
@@ -17,13 +18,11 @@ class bbmSpec extends FunSpec with ScalaFutures {
 			}
 		}
 	}
-	describe("toMetaLeague") {
-		it("should transform league into meta league") {
-			whenReady(toMetaLeague(League(2449, "NOBBL", true)), timeout(10 seconds)) { result ⇒
-				result.league.id should be(2449)
-				result.league.name should be("NOBBL")
-				result.league.meta should be(true)
-				result.children.isEmpty should be(false)
+	describe("toLeagueTree") {
+		it("should transform league into league tree") {
+			whenReady(toLeagueTree(League(2449, "NOBBL", true)), timeout(10 seconds)) { result ⇒
+				result.root should be (League(2449, "NOBBL", true))
+				result.children.isEmpty should be (false)
 			}
 		}
 	}
