@@ -9,19 +9,22 @@ import org.scalatest.concurrent.Timeouts._
 
 class bbmSpec extends FunSpec with ScalaFutures {
 	describe("league") {
-		whenReady(league(2449), timeout(1 seconds)) { result =>
-			result.id should be (2449)
-			result.name should be ("NOBBL")
-			result.meta should be (true)
+		it("should return correct league") {
+			whenReady(league(2449), timeout(1 seconds)) { result ⇒
+				result.id should be(2449)
+				result.name should be("NOBBL")
+				result.meta should be(true)
+			}
 		}
 	}
-	describe("metaLeagues") {
-		whenReady(metaLeague(2449), timeout(30 seconds)) { result =>
-			result.league.id should be (2449)
-			result.league.name should be ("NOBBL")
-			result.league.meta should be (true)
-			result.children.isEmpty should be (false)
-			println(s"children {\n ${result.children.mkString("\n")} \n")
+	describe("toMetaLeague") {
+		it("should transform league into meta league") {
+			whenReady(toMetaLeague(League(2449, "NOBBL", true)), timeout(10 seconds)) { result ⇒
+				result.league.id should be(2449)
+				result.league.name should be("NOBBL")
+				result.league.meta should be(true)
+				result.children.isEmpty should be(false)
+			}
 		}
 	}
 }

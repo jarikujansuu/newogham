@@ -33,6 +33,7 @@ object BBM {
 	private val Host = "bbm.jcmag.fr"
 	
 	def webservice(path : String) = url(http, Host, "/bloodbowlmanager.webservice.public/publicservice.asmx/" + path) 
+	
 	private def get[A](uri : URL)(parser: String ⇒ A): Future[A] = {
 		val p = Promise[A]
 		GET(uri).apply.map(resp ⇒ {
@@ -47,7 +48,7 @@ object BBM {
 		p.future
 	}
 
-	object Xml {
+	private object Xml {
 		private def nodeToLeague(node : Node) = {
 			val id = (node \ "Id").head.text.toInt
 			val name = (node \ "Name").head.text
@@ -63,16 +64,15 @@ object BBM {
 	
 	def leagues: Future[List[League]] = get(webservice("GetAllLeagues")) { Xml.leagues }
 
-	def metaLeague(root: Int): Future[MetaLeague] = {
-		def toMetaLeagues(parents : List[League]) : Future[List[MetaLeague]] = Future.sequence(parents.map(_.id).map(metaLeague))
+	def leagueTree(root : Int) = get(webservice("GetMetaChildren") ? (("parentLeagueId", root.toString))) { Xml.metaLeagueChildren }
+
+	def toMetaLeague(root: League): Future[MetaLeague] = {
+		def toMetaLeagues(parents : List[League]) : Future[List[MetaLeague]] = Future.sequence(parents.map(toMetaLeague))
 		def childrenOf(parent : League) : Future[List[League]]= {
-			def metaChildren = get(webservice("GetMetaChildren") ? (("parentLeagueId", parent.id.toString))) { Xml.metaLeagueChildren }
-			
-			if (parent.meta) metaChildren.flatMap(children => Future.sequence(children.map(league)))
+			if (parent.meta) leagueTree(parent.id).flatMap(children => Future.sequence(children.map(league)))
 			else Future.successful(Nil)
-		}		
-		
-		league(root).flatMap({ league => childrenOf(league).flatMap(toMetaLeagues).map(MetaLeague(league, _)) })
+		}				
+		childrenOf(root).flatMap(toMetaLeagues).map(MetaLeague(root, _))
 	}
 
 	def league(id: Int) : Future[League] = get(webservice("GetLeague") ? (("leagueId", id.toString))) { Xml.league }
