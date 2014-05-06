@@ -17,6 +17,7 @@ import BB._
 import scala.concurrent.duration.Duration
 import org.joda.time.DateTime
 import com.github.nscala_time.time.StaticDateTime
+import com.github.nscala_time.time.OrderingImplicits._
 
 object BB {
 	type Race = String
@@ -61,7 +62,7 @@ object BBM {
 			League(id, name, meta)
 		}
 
-		def leagueMatch(xml: String): Match = {
+		def leagueMatches(xml: String): List[Match] = {
 			def team(game: Node, postFix: String) = {
 				val coach = (game \ s"Coach$postFix").head.text
 				val name = (game \ s"Team$postFix").head.text
@@ -77,9 +78,9 @@ object BBM {
 				val homeTd = (game \ s"Score$Home").head.text.toInt
 				val visitorTd = (game \ s"Score$Visitor").head.text.toInt
 				val date = (game \ "Date").map(_.text).map(DateTime.parse(_)).head
-				
+
 				Match(id, day, home, visitor, homeTd, visitorTd, date)
-			}).head
+			}).toList.sortBy(_.day)
 		}
 
 		def league(xml: String): League = (XML.loadString(xml) \\ "LeagueEntity").map(nodeToLeague).head
@@ -103,8 +104,15 @@ object BBM {
 	def league(id: Int): Future[League] = get(webservice("GetLeague") ? (("leagueId", id.toString))) { Xml.league }
 
 	def teamsForLeague(id: Int): Set[Team] = ???
-	
+
 	def matchesForLeague(id: Int) = {
-		get(webservice("GetMatchsByLeague") ? (("leagueId", id.toString))) { Xml.leagueMatch }
+		get(webservice("GetMatchsByLeague") ? (("leagueId", id.toString))) { Xml.leagueMatches }
 	}
+
+	def matchesBetween(league: Int, aTeam: String, bTeam: String): Future[List[Match]] = {
+		def isPlaying(team: String, in: Match) = team == in.home.name || team == in.visitor.name
+
+		matchesForLeague(league).map(_.filter(m ⇒ (isPlaying(aTeam, m) && isPlaying(bTeam, m)))).map(_.sortBy(_.played))
+	}
+	def lastMatchBetween(league: Int, aTeam: String, bTeam: String): Future[Option[Match]] = matchesBetween(league, aTeam, bTeam).map(_.headOption)
 }
