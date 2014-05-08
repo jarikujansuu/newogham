@@ -18,6 +18,7 @@ import scala.concurrent.duration.Duration
 import org.joda.time.DateTime
 import com.github.nscala_time.time.StaticDateTime
 import com.github.nscala_time.time.OrderingImplicits._
+import org.scalatest.concurrent.Futures
 
 object BB {
 	type Race = String
@@ -35,7 +36,11 @@ object BBM {
 	private val Host = "bbm.jcmag.fr"
 
 	def webservice(path: String) = url(http, Host, "/bloodbowlmanager.webservice.public/publicservice.asmx/" + path)
-
+	implicit def enhanceNode(node : Node) = new EnhancedNode(node)
+	class EnhancedNode(node : Node) {
+		def toInt : Int = if (node.text.length == 0) 0 else node.text.toInt
+	}
+	
 	private def get[A](uri: URL)(parser: String ⇒ A): Future[A] = {
 		val p = Promise[A]
 		GET(uri).apply.map(resp ⇒ {
@@ -55,7 +60,7 @@ object BBM {
 	    private val Visitor = "B"
 		
 		private def nodeToLeague(node: Node) = {
-			val id = (node \ "Id").head.text.toInt
+			val id = (node \ "Id").head.toInt
 			val name = (node \ "Name").head.text
 			//			val meta = (node \ "IsMetaLeague").head.text.toBoolean
 			val meta = true // TODO
@@ -67,31 +72,40 @@ object BBM {
 				val coach = (game \ s"Coach$postFix").head.text
 				val name = (game \ s"Team$postFix").head.text
 				val race = (game \ s"Race$postFix").head.text
-				val tv = (game \ s"TV$postFix").head.text.toInt
+				val tv = (game \ s"TV$postFix").head.toInt
 				Team(name, coach, tv, race)
 			}
+			
 			(XML.loadString(xml) \\ "LeagueMatch").map({ game ⇒
-				val id = (game \ "id").head.text.toInt
-				val day = (game \ "Day").head.text.toInt
+				val id = (game \ "Id").head.toInt
+				val day = (game \ "Day").head.toInt
 				val home = team(game, Home)
 				val visitor = team(game, Visitor)
-				val homeTd = (game \ s"Score$Home").head.text.toInt
-				val visitorTd = (game \ s"Score$Visitor").head.text.toInt
+				val homeTd = (game \ s"Score$Home").head.toInt
+				val visitorTd = (game \ s"Score$Visitor").head.toInt
 				val date = (game \ "Date").map(_.text).map(DateTime.parse(_)).head
-
+				
 				Match(id, day, home, visitor, homeTd, visitorTd, date)
 			}).toList.sortBy(_.day)
 		}
 
 		def league(xml: String): League = (XML.loadString(xml) \\ "LeagueEntity").map(nodeToLeague).head
 		def leagues(xml: String): List[League] = (XML.loadString(xml) \\ "LeagueEntity").map(nodeToLeague).toList
-		def metaLeagueChildren(xml: String): List[Int] = (XML.loadString(xml) \\ "MetaLeagueConfig").map(c ⇒ { (c \ "LeagueId").head.text.toInt }).toList
+		def metaLeagueChildren(xml: String): List[Int] = (XML.loadString(xml) \\ "MetaLeagueConfig").map(c ⇒ { (c \ "LeagueId").head.toInt }).toList
 	}
 
 	def leagues: Future[List[League]] = get(webservice("GetAllLeagues")) { Xml.leagues }
 
-	def leagueTree(root: Int) = get(webservice("GetMetaChildren") ? (("parentLeagueId", root.toString))) { Xml.metaLeagueChildren }
-
+	def leagueTree(root: Int) = {
+		def children(parent : Int) = get(webservice("GetMetaChildren") ? (("parentLeagueId", parent.toString))) { Xml.metaLeagueChildren }
+		
+		children(root).flatMap({
+			case c if c.isEmpty => Future.successful(c)
+			case c => Future.sequence(c.map(children(_))).map(c ++ _.flatten)
+		})
+	}
+	def leagueAndChildren(root : Int) = leagueTree(root).map(children => root :: children)	
+	
 	def toLeagueTree(root: League): Future[LeagueTree] = {
 		def toLeaguesTree(parents: List[League]): Future[List[LeagueTree]] = Future.sequence(parents.map(toLeagueTree))
 		def childrenOf(parent: League): Future[List[League]] = {
@@ -103,10 +117,13 @@ object BBM {
 
 	def league(id: Int): Future[League] = get(webservice("GetLeague") ? (("leagueId", id.toString))) { Xml.league }
 
-	def teamsForLeague(id: Int): Set[Team] = ???
+	def teamsForLeague(id: Int): Future[Set[Team]] = ???
 
 	def matchesForLeague(id: Int) = {
-		get(webservice("GetMatchsByLeague") ? (("leagueId", id.toString))) { Xml.leagueMatches }
+		leagueAndChildren(id).flatMap(leagues ⇒{
+			val matchesByLeague = leagues.map(id ⇒ { get(webservice("GetMatchsByLeague") ? (("leagueId", id.toString))) { Xml.leagueMatches } })
+			Future.sequence(matchesByLeague).map(_.flatten)
+		})
 	}
 
 	def matchesBetween(league: Int, aTeam: String, bTeam: String): Future[List[Match]] = {
@@ -114,5 +131,5 @@ object BBM {
 
 		matchesForLeague(league).map(_.filter(m ⇒ (isPlaying(aTeam, m) && isPlaying(bTeam, m)))).map(_.sortBy(_.played))
 	}
-	def lastMatchBetween(league: Int, aTeam: String, bTeam: String): Future[Option[Match]] = matchesBetween(league, aTeam, bTeam).map(_.headOption)
+	def matchBetween(league: Int, aTeam: String, bTeam: String, num : Int = 1): Future[Option[Match]] = matchesBetween(league, aTeam, bTeam).map(_.lift(num - 1))
 }
