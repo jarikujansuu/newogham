@@ -32,6 +32,12 @@ import com.typesafe.scalalogging.slf4j.LazyLogging
 
 import java.net.URLDecoder
 import java.nio.charset.Charset
+import Http._
+
+object Http {
+	type Request = HttpRequest[HttpServletRequest]
+	type Response = ResponseFunction[HttpServletResponse]	
+}
 
 trait RestPlan extends Plan with LazyLogging {
 	implicit val formats = DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
@@ -42,7 +48,7 @@ trait RestPlan extends Plan with LazyLogging {
 	}
 	object utf8 extends Extract { val charset = Charset.forName("utf8") }
 	object AsInt { def unapply(s: String): Option[Int] = allCatch.opt(s.toInt) }
-	def parse(req: HttpRequest[HttpServletRequest]) = JsonMethods.parse(Body.string(req))
+	def parse(req: Request) = JsonMethods.parse(Body.string(req))
 
 	def json(input: AnyRef) = JsonContent ~> ResponseString(write(input))
 
@@ -63,8 +69,8 @@ trait RestPlan extends Plan with LazyLogging {
 
 	def handleJson[A, B <: AnyRef](
 		handler: A ⇒ Try[B],
-		responseHandler: B ⇒ ResponseFunction[HttpServletResponse] = DefaultResponseHandler,
-		failureHandler: Throwable ⇒ ResponseFunction[HttpServletResponse] = DefaultFailureHandler)(req: HttpRequest[HttpServletRequest])(implicit m: Manifest[A]) = {
+		responseHandler: B ⇒ Response = DefaultResponseHandler,
+		failureHandler: Throwable ⇒ Response = DefaultFailureHandler)(req: Request)(implicit m: Manifest[A]) = {
 
 		def handleInput(in: A) = handler(in) match {
 			case Success(resp) ⇒ responseHandler(resp)
@@ -79,8 +85,8 @@ trait RestPlan extends Plan with LazyLogging {
 
 	def handleJsonNoResponse[A](
 		handler: A ⇒ Try[Any],
-		response: ⇒ ResponseFunction[HttpServletResponse] = Ok,
-		failureHandler: Throwable ⇒ ResponseFunction[HttpServletResponse] = DefaultFailureHandler)(req: HttpRequest[HttpServletRequest])(implicit m: Manifest[A]) = {
+		response: ⇒ Response = Ok,
+		failureHandler: Throwable ⇒ Response = DefaultFailureHandler)(req: Request)(implicit m: Manifest[A]) = {
 
 		type NoResponse = AnyRef
 		def handlerWrapper: A ⇒ Try[NoResponse] = { a: A ⇒ handler(a).map(x ⇒ None) }
@@ -93,7 +99,7 @@ trait RestPlan extends Plan with LazyLogging {
 	  * Parse Json input from request.
 	  * @return Either right containing object of type <code>A</code> parsed from request, or left containing parse error string.
 	  */
-	def parseJson[A](req: HttpRequest[HttpServletRequest])(implicit m: Manifest[A]): Either[String, A] = {
+	def parseJson[A](req: Request)(implicit m: Manifest[A]): Either[String, A] = {
 		Try(parse(req).extract[A]) match {
 			case Success(a) ⇒ Right(a)
 			case Failure(e: MappingException) ⇒
