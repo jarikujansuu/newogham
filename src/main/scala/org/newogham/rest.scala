@@ -20,7 +20,7 @@ import unfiltered.response.ResponseString
 trait NewOghamApi {
 	import jk.Http._
 	
-	implicit val maxWait = 10 seconds
+	implicit val maxWait = 30 seconds
 	
 	val DefaultFormat = "json"
 	val Json = "json"
@@ -29,13 +29,11 @@ trait NewOghamApi {
 		
 	def output(req : Request) = {
 		val json = req.parameterNames.contains(Json)
-		val html = req.parameterNames.contains(Json)
 		val img = req.parameterNames.contains(Img)
 		
-		(json, html, img) match {
-			case (true, false, false) => Json
-			case (false, true, false) => Html
-			case (false, false, true) => Img
+		(json, img) match {
+			case (true, false) => Json
+			case (false, true) => Img
 			case _ => DefaultFormat
 		}
 	}
@@ -64,7 +62,7 @@ class Matches extends RestPlan with NewOghamApi {
 				case Failure(e) ⇒ InternalServerError ~> ResponseString(e.getMessage)
 			}
 		}
-		case req @ Path(Seg("league" :: AsInt(league) :: "matches" :: Nil)) ⇒ {
+		case req @ Path(Seg("matches" :: AsInt(league) :: Nil)) ⇒ {
 			BBM.matchesForLeague(league).waitFor match {
 				case Success(m) ⇒ output(req) match {
 					case Json => Ok ~> json(m)
