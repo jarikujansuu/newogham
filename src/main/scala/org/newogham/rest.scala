@@ -76,7 +76,7 @@ class Matches extends RestPlan with NewOghamApi {
 
 class Teams extends RestPlan with NewOghamApi {
 	def intent = {
-		case Path(Seg("league" :: AsInt(league) :: "teams" :: Nil)) ⇒ {
+		case Path(Seg("teams" :: AsInt(league) ::  Nil)) ⇒ {
 			BBM.teamsForLeague(league).waitFor match {
 				case Success(t) => Ok ~> json(t)
 				case Failure(e) ⇒ InternalServerError ~> ResponseString(e.getMessage)
@@ -95,13 +95,13 @@ class Leagues extends RestPlan with NewOghamApi {
 				case Failure(e) ⇒ InternalServerError ~> ResponseString(e.getMessage)
 			}
 		}
-		case Path(Seg("league" :: AsInt(league) :: Nil)) ⇒ {
+		case Path(Seg("leagues" :: AsInt(league) :: Nil)) ⇒ {
 			BBM.league(league).waitFor match {
 				case Success(l) => Ok ~> json(l)
 				case Failure(e) ⇒ InternalServerError ~> ResponseString(e.getMessage)
 			}
 		}
-		case Path(Seg("league" :: AsInt(league) :: "tree" :: Nil)) ⇒ {
+		case Path(Seg("leagues" :: AsInt(league) :: "tree" :: Nil)) ⇒ {
 			BBM.leagueTree(league).waitFor match {
 				case Success(l) => Ok ~> json(l)
 				case Failure(e) ⇒ InternalServerError ~> ResponseString(e.getMessage)

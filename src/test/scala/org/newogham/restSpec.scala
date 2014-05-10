@@ -42,9 +42,9 @@ class MatchesSpec extends FunSpec with RestSuite with RestClient {
 class TeamsSpec extends FunSpec with RestSuite with RestClient {
 	def api = new Teams
 	describe("teams rest api") {
-		describe("GET /league/<league>/teams") {
-			it("should return league teams") {
-				val result = GET("/league/2449/teams").response
+		describe("GET /teams/<league>") {
+			ignore("should return league teams") {
+				val result = GET("/teams/2449").response
 				println("result = " + result)
 //				.json.extract[List[Team]]
 //				result.isEmpty should be(false)
@@ -63,14 +63,14 @@ class LeaguesSpec extends FunSpec with RestSuite with RestClient {
 				result.isEmpty should be(false)
 			}
 		}
-		describe("GET /league/<league>") {
+		describe("GET /leagues/<league>") {
 			it("should return something") {
-				GET(s"/league/2449").response.json.extract[League]
+				GET(s"/leagues/2449").response.json.extract[League]
 			}
 		}
 		describe("GET /leagues/<league>/tree") {
 			it("should return league ids for league and all sub leagues") {
-				val result = GET("/league/2449/tree").response.json.extract[List[Int]]
+				val result = GET("/leagues/2449/tree").response.json.extract[List[Int]]
 				result.isEmpty should be(false)
 			}
 		}
