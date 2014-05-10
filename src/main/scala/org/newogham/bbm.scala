@@ -33,8 +33,8 @@ object BBM {
 	import com.stackmob.newman.response.HttpResponseCode._
 	implicit val httpClient = new ApacheHttpClient
 
-	val BaseUrl = s"http://${Host}/BloodBowlManager.WebSite/"
 	private val Host = "bbm.jcmag.fr"
+	val BaseUrl = s"http://${Host}/BloodBowlManager.WebSite/"
 
 	def webservice(path: String) = url(http, Host, "/bloodbowlmanager.webservice.public/publicservice.asmx/" + path)
 	implicit def enhanceNode(node : Node) = new EnhancedNode(node)
