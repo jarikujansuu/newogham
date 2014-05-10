@@ -1,47 +1,31 @@
 package org.newogham
 
-import java.io.IOException
-import java.net.URL
-import scala.concurrent._
-import scala.concurrent.ExecutionContext
-import scala.util.Failure
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.concurrent.Promise
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
-import scala.xml.Node
-import scala.xml.XML
+
+import org.joda.time.DateTime
+
+import com.github.nscala_time.time.OrderingImplicits.DateTimeOrdering
 import com.stackmob.newman.ApacheHttpClient
 import com.stackmob.newman.dsl._
-import com.stackmob.newman.dsl.URLBuilderDSL
-import BB._
-import scala.concurrent.duration.Duration
-import org.joda.time.DateTime
-import com.github.nscala_time.time.StaticDateTime
-import com.github.nscala_time.time.OrderingImplicits._
-import org.scalatest.concurrent.Futures
+import com.stackmob.newman.response.HttpResponseCode.Ok
 
-object BB {
-	type Race = String
-	case class League(id: Int, name: String, meta: Boolean = false)
-	case class LeagueTree(root: League, children: List[LeagueTree])
-	case class Team(name: String, coach: String, tv: Int, race: Race)
-	case class Match(id: Int, day: Int, home: Team, visitor: Team, homeTD: Int, visitorTD: Int, played: DateTime)
-}
+import org.newogham.BB._
 
 object BBM {
-	import ExecutionContext.Implicits.global
-	import com.stackmob.newman.response.HttpResponseCode._
-	implicit val httpClient = new ApacheHttpClient
+	import java.io.IOException
+	import java.net.URL
 
 	private val Host = "bbm.jcmag.fr"
 	val BaseUrl = s"http://${Host}/BloodBowlManager.WebSite/"
 
 	def webservice(path: String) = url(http, Host, "/bloodbowlmanager.webservice.public/publicservice.asmx/" + path)
-	implicit def enhanceNode(node : Node) = new EnhancedNode(node)
-	class EnhancedNode(node : Node) {
-		def toInt : Int = if (node.text.length == 0) 0 else node.text.toInt
-	}
 	
+	implicit val httpClient = new ApacheHttpClient
 	private def get[A](uri: URL)(parser: String ⇒ A): Future[A] = {
 		val p = Promise[A]
 		GET(uri).apply.map(resp ⇒ {
@@ -57,6 +41,13 @@ object BBM {
 	}
 
 	private object Xml {
+		import scala.xml.Node
+		import scala.xml.XML
+
+		implicit def enhanceNode(node: Node) = new EnhancedNode(node)
+		class EnhancedNode(node: Node) {
+			def toInt: Int = if (node.text.length == 0) 0 else node.text.toInt
+		}
 		private val Home = "A"
 	    private val Visitor = "B"
 		
